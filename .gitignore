@@ -1,0 +1,20 @@
+.DS_Store
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+.terraform.lock.hcl
+.idea
+_build
+/plan.stderr
+/plan.stdout
+/.claude/*.local.json
+/.claude/reviews/
+
+# Test artifacts
+pytest-*.log
+__pycache__
+.pytest_cache

@@ -1,0 +1,24 @@
+[Unit]
+Description=OpenClaw AI Agent Gateway
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=openclaw
+Group=openclaw
+WorkingDirectory=/home/openclaw/openclaw-app
+EnvironmentFile=/home/openclaw/.openclaw-env
+ExecStart=/home/openclaw/openclaw-app/node_modules/.bin/openclaw gateway
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=tmpfs
+BindPaths=/home/openclaw
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
