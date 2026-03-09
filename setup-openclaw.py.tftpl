@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+"""Bootstrap OpenClaw on an EC2 instance.
+
+This script is rendered by Terraform (templatefile) and executed by cloud-init
+as a post_runcmd step. It:
+
+1. Fetches API keys from Secrets Manager and writes an environment file.
+2. Installs OpenClaw via npm (local install, unprivileged user).
+3. Merges Terraform-managed config into any existing config on EFS.
+4. Installs Ollama from the official binary tarball.
+5. Configures the CloudWatch agent for journald log forwarding.
+6. Enables and starts the openclaw and ollama systemd services.
+"""
+
+import json
+import logging
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+logging.basicConfig(
+    format="[setup-openclaw] %(asctime)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+)
+log = logging.getLogger(__name__)
+
+OPENCLAW_HOME = Path("/home/openclaw")
+OPENCLAW_CONFIG = OPENCLAW_HOME / ".openclaw" / "openclaw.json"
+ENV_FILE = OPENCLAW_HOME / ".openclaw-env"
+
+# Terraform template variables
+SECRET_NAME = "${secret_name}"
+AWS_REGION = "${aws_region}"
+CLOUDWATCH_LOG_GROUP = "${cloudwatch_log_group}"
+OLLAMA_DEFAULT_MODEL = "${ollama_default_model}"
+TERRAFORM_CONFIG = json.loads(r'''${openclaw_config_json}''')
+
+
+def run(cmd, **kwargs):
+    """Run a command, logging it and raising on failure."""
+    log.info("Running: %s", cmd if isinstance(cmd, str) else " ".join(cmd))
+    return subprocess.run(cmd, shell=isinstance(cmd, str), check=True, **kwargs)
+
+
+def chown_recursive(path, user, group):
+    run(f"chown -R {user}:{group} {path}")
+
+
+def deep_merge(base, override):
+    """Recursively merge *override* into *base*. Override wins for scalars."""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+# --------------------------------------------------------------------------- #
+# 1. API keys from Secrets Manager
+# --------------------------------------------------------------------------- #
+def fetch_api_keys():
+    log.info("Fetching API keys from Secrets Manager...")
+    result = subprocess.run(
+        ["ih-secrets", "get", SECRET_NAME],
+        capture_output=True, text=True, check=True,
+    )
+    raw = result.stdout.strip()
+    log.info("API keys secret fetched (length: %d)", len(raw))
+
+    keys = {}
+    try:
+        data = json.loads(raw)
+        for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN"):
+            if data.get(key):
+                keys[key] = data[key]
+    except json.JSONDecodeError:
+        log.warning("API keys secret is not valid JSON (%s). Skipping.", raw)
+
+    log.info(
+        "Parsed keys: %s",
+        ", ".join(f"{k}=set" for k in keys) or "none",
+    )
+    return keys
+
+
+def write_env_file(keys):
+    lines = [
+        f"AWS_REGION={AWS_REGION}",
+        f"AWS_DEFAULT_REGION={AWS_REGION}",
+        # AWS_PROFILE=default triggers OpenClaw's Bedrock credential
+        # check to return "<authenticated>".  The AWS SDK then resolves
+        # credentials via the EC2 instance-profile (IMDS) as usual.
+        "AWS_PROFILE=default",
+    ]
+    lines += [f"{k}={v}" for k, v in keys.items() if v]
+    ENV_FILE.write_text("\n".join(lines) + "\n")
+    os.chmod(ENV_FILE, 0o600)
+    shutil.chown(ENV_FILE, "openclaw", "openclaw")
+    log.info("Environment file written.")
+
+
+# --------------------------------------------------------------------------- #
+# 2. Install OpenClaw
+# --------------------------------------------------------------------------- #
+def install_openclaw():
+    chown_recursive(OPENCLAW_HOME, "openclaw", "openclaw")
+    log.info("Installing OpenClaw via npm...")
+    run(
+        "su - openclaw -c "
+        "'mkdir -p ~/openclaw-app && cd ~/openclaw-app && npm init -y && npm install openclaw'"
+    )
+    log.info("OpenClaw installed.")
+
+
+# --------------------------------------------------------------------------- #
+# 3. OpenClaw configuration (deep-merge Terraform into EFS)
+# --------------------------------------------------------------------------- #
+def configure_openclaw():
+    """Merge Terraform config into existing config on EFS.
+
+    Terraform manages infrastructure settings (auth, networking, providers).
+    Operational settings (Telegram, channels, agent tweaks) are configured via
+    the OpenClaw UI/CLI and persist on EFS across redeployments.
+    """
+    log.info("Configuring OpenClaw...")
+    OPENCLAW_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+
+    if OPENCLAW_CONFIG.exists() and OPENCLAW_CONFIG.stat().st_size > 0:
+        try:
+            existing = json.loads(OPENCLAW_CONFIG.read_text())
+            merged = deep_merge(existing, TERRAFORM_CONFIG)
+            # Terraform is authoritative for providers and agent defaults —
+            # replace entirely so stale entries from old deploys are removed.
+            tf_providers = TERRAFORM_CONFIG.get("models", {}).get("providers")
+            if tf_providers is not None:
+                merged.setdefault("models", {})["providers"] = tf_providers
+            tf_agent_defaults = TERRAFORM_CONFIG.get("agents", {}).get("defaults")
+            if tf_agent_defaults is not None:
+                merged.setdefault("agents", {})["defaults"] = tf_agent_defaults
+            log.info("Merged Terraform config into existing config on EFS.")
+        except json.JSONDecodeError:
+            log.warning("Existing config is invalid JSON. Overwriting.")
+            merged = TERRAFORM_CONFIG
+    else:
+        log.info("No existing config found. Writing initial config.")
+        merged = TERRAFORM_CONFIG
+
+    OPENCLAW_CONFIG.write_text(json.dumps(merged, indent=2) + "\n")
+
+    # Validate
+    json.loads(OPENCLAW_CONFIG.read_text())
+    chown_recursive(OPENCLAW_CONFIG.parent, "openclaw", "openclaw")
+    log.info("OpenClaw config ready.")
+
+
+# --------------------------------------------------------------------------- #
+# 4. Ollama — direct binary install (no curl|sh)
+# --------------------------------------------------------------------------- #
+OLLAMA_SERVICE = """\
+[Unit]
+Description=Ollama Service
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/ollama serve
+User=ollama
+Group=ollama
+Restart=always
+RestartSec=3
+Environment="HOME=/usr/share/ollama"
+Environment="OLLAMA_HOST=127.0.0.1"
+
+[Install]
+WantedBy=default.target
+"""
+
+
+def install_ollama():
+    log.info("Installing Ollama...")
+    with tempfile.TemporaryDirectory() as tmp:
+        tarball = os.path.join(tmp, "ollama.tar.zst")
+        run(f"curl -fsSL -o {tarball} https://ollama.com/download/ollama-linux-amd64.tar.zst")
+        run(f"tar --use-compress-program=unzstd -xf {tarball} -C {tmp}")
+        run(f"install -m 755 {tmp}/bin/ollama /usr/local/bin/ollama")
+
+    result = subprocess.run(
+        ["useradd", "--system", "--shell", "/bin/false", "ollama"],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 9:
+        log.info("User 'ollama' already exists.")
+    elif result.returncode != 0:
+        log.error("useradd failed (exit %d): %s", result.returncode, result.stderr.strip())
+        raise subprocess.CalledProcessError(result.returncode, "useradd")
+    Path("/etc/systemd/system/ollama.service").write_text(OLLAMA_SERVICE)
+    Path("/usr/share/ollama").mkdir(parents=True, exist_ok=True)
+    shutil.chown("/usr/share/ollama", "ollama", "ollama")
+
+    run("systemctl daemon-reload")
+    run("systemctl enable ollama")
+    run("systemctl start ollama")
+    log.info("Ollama installed and started.")
+
+    if OLLAMA_DEFAULT_MODEL:
+        log.info("Pulling Ollama model %s in background...", OLLAMA_DEFAULT_MODEL)
+        run(
+            f"su - openclaw -c "
+            f"'nohup ollama pull {OLLAMA_DEFAULT_MODEL} "
+            f">> /home/openclaw/ollama-pull.log 2>&1 &'"
+        )
+
+
+# --------------------------------------------------------------------------- #
+# 5. CloudWatch agent
+# --------------------------------------------------------------------------- #
+CLOUDWATCH_CONFIG = {
+    "logs": {
+        "logs_collected": {
+            "journald": {
+                "collect_list": [
+                    {
+                        "log_group_name": CLOUDWATCH_LOG_GROUP,
+                        "filters": [
+                            {"expression": "_SYSTEMD_UNIT=openclaw.service"},
+                            {"expression": "_SYSTEMD_UNIT=ollama.service"},
+                        ],
+                    }
+                ]
+            }
+        }
+    }
+}
+
+
+def configure_cloudwatch():
+    log.info("Configuring CloudWatch agent...")
+    cw_dir = Path("/opt/aws/amazon-cloudwatch-agent/etc")
+    cw_dir.mkdir(parents=True, exist_ok=True)
+    (cw_dir / "amazon-cloudwatch-agent.json").write_text(
+        json.dumps(CLOUDWATCH_CONFIG, indent=2) + "\n"
+    )
+
+    if shutil.which("amazon-cloudwatch-agent-ctl"):
+        run(
+            "amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 "
+            f"-c file:{cw_dir}/amazon-cloudwatch-agent.json -s"
+        )
+
+
+# --------------------------------------------------------------------------- #
+# 6. Start OpenClaw service
+# --------------------------------------------------------------------------- #
+def start_openclaw():
+    log.info("Starting OpenClaw service...")
+    run("systemctl daemon-reload")
+    run("systemctl enable openclaw.service")
+    run("systemctl start openclaw.service")
+    log.info("Setup complete.")
+
+
+# --------------------------------------------------------------------------- #
+# Main
+# --------------------------------------------------------------------------- #
+def main():
+    try:
+        keys = fetch_api_keys()
+        write_env_file(keys)
+        install_openclaw()
+        configure_openclaw()
+        install_ollama()
+        configure_cloudwatch()
+        start_openclaw()
+    except subprocess.CalledProcessError as exc:
+        log.error("Command failed (exit %d): %s", exc.returncode, exc.cmd)
+        sys.exit(1)
+    except Exception:
+        log.exception("Setup failed")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

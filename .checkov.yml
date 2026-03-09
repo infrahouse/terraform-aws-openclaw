@@ -1,0 +1,39 @@
+# Checkov configuration for terraform-aws-openclaw module
+
+framework:
+  - terraform
+
+skip-path:
+  - test_data
+  - examples
+
+skip-check:
+  # CKV_TF_1: Module sources use version pins from private registry (registry.infrahouse.com)
+  # InfraHouse standard: exact version pinning from registry.infrahouse.com,
+  # which provides better maintainability than commit hash pinning.
+  # Renovate manages version updates via individual PRs for explicit review.
+  - CKV_TF_1
+
+  # CKV_AWS_158: CloudWatch Logs use AWS-managed encryption
+  # AWS-managed encryption at rest is the InfraHouse standard.
+  # Logs contain application output and connection metadata (no PII or credentials).
+  # CMK is only required for CloudTrail per security policy.
+  - CKV_AWS_158
+
+  # CKV_AWS_111: IAM write access without resource constraints
+  # Two statements use "*" resources by necessity:
+  # 1. Bedrock ListFoundationModels/ListInferenceProfiles + Marketplace Subscribe
+  #    are service-level actions that do not support resource-level constraints.
+  # 2. autoscaling:CompleteLifecycleAction + ec2:DescribeInstances are used by
+  #    ih-aws autoscaling complete, which discovers its own ASG at runtime.
+  - CKV_AWS_111
+
+  # CKV_AWS_356: IAM "*" resource for restrictable actions
+  # Same two statements as CKV_AWS_111 above. Bedrock list/marketplace actions
+  # and lifecycle hook completion actions require "*" resources because:
+  # - Bedrock discovery APIs are not resource-scoped
+  # - The instance discovers its own ASG name dynamically via instance metadata
+  - CKV_AWS_356
+
+compact: true
+quiet: false
