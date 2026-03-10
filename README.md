@@ -31,7 +31,7 @@ LLM support (Bedrock, Anthropic API, OpenAI API, Ollama).
 ```hcl
 module "openclaw" {
   source  = "registry.infrahouse.com/infrahouse/openclaw/aws"
-  version = "0.1.0"
+  version = "0.2.0"
   providers = {
     aws     = aws
     aws.dns = aws
