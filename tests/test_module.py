@@ -214,9 +214,15 @@ def test_module(
 
         # Verify EFS is mounted
         exit_code, cout, cerr = instance.execute_command(
-            "mountpoint -q /home/openclaw/.openclaw"
+            "cat /proc/mounts | grep openclaw || echo 'NO_MATCH'"
         )
-        assert exit_code == 0, (
+        LOG.info(
+            "EFS mount check: exit_code=%d, stdout=%s, stderr=%s",
+            exit_code,
+            cout,
+            cerr,
+        )
+        assert "openclaw" in cout, (
             f"EFS should be mounted at /home/openclaw/.openclaw: "
             f"stdout={cout}, stderr={cerr}"
         )

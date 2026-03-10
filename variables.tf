@@ -2,6 +2,11 @@ variable "service_name" {
   type        = string
   description = "Service name used for resource naming, tags, and Cognito pool."
   default     = "openclaw"
+
+  validation {
+    condition     = can(regex("^[a-z0-9-]+$", var.service_name)) && length(var.service_name) <= 28
+    error_message = "service_name must contain only lowercase letters, numbers, and hyphens, max 28 characters."
+  }
 }
 
 variable "environment" {
@@ -22,6 +27,11 @@ variable "dns_a_records" {
     [""] for zone apex, ["", "www"] for both.
   EOT
   default     = ["openclaw"]
+
+  validation {
+    condition     = length(var.dns_a_records) >= 1
+    error_message = "At least one DNS A record name is required."
+  }
 }
 
 variable "zone_id" {
@@ -135,6 +145,7 @@ variable "extra_instance_permissions" {
   type        = string
   description = "Additional IAM policy document JSON to attach to the instance role (merged with module-managed permissions)."
   default     = null
+  nullable    = true
 }
 
 variable "enable_deletion_protection" {

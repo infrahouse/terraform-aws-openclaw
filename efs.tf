@@ -10,6 +10,10 @@ resource "aws_efs_file_system" "this" {
   encrypted      = true
   kms_key_id     = data.aws_kms_key.efs_default.arn
 
+  lifecycle_policy {
+    transition_to_ia = "AFTER_30_DAYS"
+  }
+
   tags = merge(local.default_module_tags, {
     Name = "${var.service_name}-data"
   })
