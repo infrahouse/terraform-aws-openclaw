@@ -65,6 +65,7 @@ guide for first login and optional provider setup.
 - [Getting Started](https://infrahouse.github.io/terraform-aws-openclaw/getting-started/)
 - [Configuration](https://infrahouse.github.io/terraform-aws-openclaw/configuration/)
 - [Architecture](https://infrahouse.github.io/terraform-aws-openclaw/architecture/)
+- [Security](https://infrahouse.github.io/terraform-aws-openclaw/security-considerations/)
 - [FAQ / Troubleshooting](https://infrahouse.github.io/terraform-aws-openclaw/FAQ/)
 
 ## LLM Provider Options
