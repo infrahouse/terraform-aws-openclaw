@@ -48,23 +48,11 @@ terraform apply
 The first apply takes ~10 minutes while cloud-init installs packages,
 mounts EFS, installs OpenClaw via npm, and pulls the default Ollama model.
 
-### 3. Add API keys
+**The module works immediately after apply.** AWS Bedrock (Amazon Nova 2
+Lite) is the default LLM provider — it uses IAM credentials from the
+instance role, so no API keys are needed.
 
-Populate the Secrets Manager secret with a JSON file containing your
-LLM API keys:
-```json
-{
-  "ANTHROPIC_API_KEY": "sk-...", 
-  "OPENAI_API_KEY": "sk-..."
-}
-```
-
-```bash
-ih-secrets set $(terraform output -raw secret_name) api-keys.json
-terraform apply
-```
-
-### 4. Log in
+### 3. Log in
 
 Each user listed in `cognito_users` will receive an email invitation
 with a temporary password:
@@ -76,11 +64,34 @@ Open the dashboard URL (e.g.
 hosted login page. After signing in with the temporary password you
 will be prompted to set a permanent one.
 
+You can start using OpenClaw right away with the default Bedrock models.
+
+### 4. (Optional) Add API keys for Anthropic / OpenAI
+
+If you want to use Anthropic or OpenAI models in addition to Bedrock,
+populate the Secrets Manager secret with a JSON file containing your
+API keys:
+
+```json
+{
+  "ANTHROPIC_API_KEY": "sk-...",
+  "OPENAI_API_KEY": "sk-..."
+}
+```
+
+```bash
+ih-secrets set $(terraform output -raw secret_name) api-keys.json
+terraform apply
+```
+
+This step is entirely optional — Bedrock provides full LLM
+functionality without any external API keys.
+
 ## Bedrock First-Time Setup
 
-If you use AWS Bedrock (enabled by default), see the
-[FAQ](FAQ.md#getting-bedrock-models-working) for the one-time setup
-steps required per AWS account.
+Bedrock models may require a one-time AWS Marketplace subscription on
+first use. See the [FAQ](FAQ.md#getting-bedrock-models-working) for
+details. Amazon Nova models typically work without any extra setup.
 
 ## Two-Provider Configuration
 

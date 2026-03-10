@@ -9,10 +9,13 @@
 
 [![AWS EC2](https://img.shields.io/badge/AWS-EC2-orange?logo=amazonec2)](https://aws.amazon.com/ec2/)
 [![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock-orange?logo=amazonaws)](https://aws.amazon.com/bedrock/)
+[![AWS Cognito](https://img.shields.io/badge/AWS-Cognito-orange?logo=amazonaws)](https://aws.amazon.com/cognito/)
 
 Deploys [OpenClaw](https://github.com/openclaw) AI agent gateway on AWS
 using EC2 behind an ALB with Cognito authentication and multi-provider
 LLM support (Bedrock, Anthropic API, OpenAI API, Ollama).
+
+![Architecture](docs/assets/architecture.svg)
 
 ## Features
 
@@ -52,8 +55,10 @@ module "openclaw" {
 }
 ```
 
-See the [Getting Started](https://infrahouse.github.io/terraform-aws-openclaw/getting-started/)
-guide for API key setup and first login.
+The module works out of the box — AWS Bedrock (Amazon Nova 2 Lite) is the
+default LLM provider and requires no API keys. See the
+[Getting Started](https://infrahouse.github.io/terraform-aws-openclaw/getting-started/)
+guide for first login and optional provider setup.
 
 ## Documentation
 
@@ -64,12 +69,34 @@ guide for API key setup and first login.
 
 ## LLM Provider Options
 
-| Provider | Configuration |
-|----------|--------------|
-| **Bedrock** | Always enabled. Uses IAM, no API keys. |
-| **Anthropic API** | Add `ANTHROPIC_API_KEY` to the Secrets Manager secret. |
-| **OpenAI API** | Add `OPENAI_API_KEY` to the Secrets Manager secret. |
-| **Ollama** | Always available. Set `ollama_default_model` to pre-pull a model. |
+| Provider | Configuration | Default? |
+|----------|--------------|----------|
+| **Bedrock** | Uses IAM, no API keys. Nova 2 Lite is the default model. | Yes |
+| **Anthropic API** | Optional. Add `ANTHROPIC_API_KEY` to the Secrets Manager secret. | No |
+| **OpenAI API** | Optional. Add `OPENAI_API_KEY` to the Secrets Manager secret. | No |
+| **Ollama** | Local models. Set `ollama_default_model` to pre-pull a model. | Available |
+
+## Security
+
+This module replaces OpenClaw's default setup patterns with
+production-grade security controls. Key differences from the default
+install guide:
+
+- **Cognito + ALB authentication** replaces the shared gateway token —
+  no secrets in the browser, per-user identity, optional MFA
+- **Supply chain hardening** — Node.js via GPG-verified APT repo, Ollama
+  from binary tarball, OpenClaw via unprivileged local npm install (no
+  `curl | sh` as root)
+- **Systemd hardening** — `ProtectSystem=strict`, `ProtectHome=tmpfs`,
+  `NoNewPrivileges=true` on both OpenClaw and Ollama services
+- **Secrets in Secrets Manager** — API keys encrypted with KMS, never in
+  plaintext userdata or config files
+- **Network isolation** — backend EC2 only reachable through the ALB
+  security group, EFS restricted to NFS from backend subnets, Ollama
+  bound to localhost
+
+See [Security Considerations](https://infrahouse.github.io/terraform-aws-openclaw/security-considerations/)
+for the full threat model and design rationale.
 
 ## Instance Sizing for Ollama Models
 
