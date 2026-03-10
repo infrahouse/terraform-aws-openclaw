@@ -15,6 +15,7 @@ as a post_runcmd step. It:
 import json
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -175,6 +176,10 @@ Restart=always
 RestartSec=3
 Environment="HOME=/usr/share/ollama"
 Environment="OLLAMA_HOST=127.0.0.1"
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/usr/share/ollama
+PrivateTmp=true
 
 [Install]
 WantedBy=default.target
@@ -209,9 +214,10 @@ def install_ollama():
 
     if OLLAMA_DEFAULT_MODEL:
         log.info("Pulling Ollama model %s in background...", OLLAMA_DEFAULT_MODEL)
+        model = shlex.quote(OLLAMA_DEFAULT_MODEL)
         run(
             f"su - openclaw -c "
-            f"'nohup ollama pull {OLLAMA_DEFAULT_MODEL} "
+            f"'nohup ollama pull {model} "
             f">> /home/openclaw/ollama-pull.log 2>&1 &'"
         )
 

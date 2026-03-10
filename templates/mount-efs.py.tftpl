@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Wait for EFS DNS to resolve, then mount.
+
+cloud-init's mounts directive writes /etc/fstab but the initial mount -a
+often fails because the EFS DNS name hasn't propagated yet.
+systemd-resolved caches the negative response, so we flush the cache
+between retries.
+"""
+
+import subprocess
+import sys
+import time
+
+EFS_DNS = "${efs_dns_name}"
+MOUNT_POINT = "${mount_point}"
+MAX_WAIT = 600  # seconds
+INITIAL_INTERVAL = 1
+MAX_INTERVAL = 16
+
+
+def run(cmd):
+    return subprocess.run(cmd, shell=True, text=True)
+
+
+def main():
+    print(f"[mount-efs] Waiting for {EFS_DNS} to resolve...")
+    start = time.monotonic()
+    interval = INITIAL_INTERVAL
+
+    while time.monotonic() - start < MAX_WAIT:
+        # Flush systemd-resolved negative cache
+        run("resolvectl flush-caches")
+
+        result = run(f"host {EFS_DNS}")
+        if result.returncode == 0:
+            print(f"[mount-efs] DNS resolved.")
+            break
+
+        elapsed = int(time.monotonic() - start)
+        print(f"[mount-efs] DNS not ready, retrying in {interval}s (elapsed {elapsed}s)...")
+        time.sleep(interval)
+        interval = min(interval * 2, MAX_INTERVAL)
+    else:
+        print(f"[mount-efs] ERROR: {EFS_DNS} did not resolve within {MAX_WAIT}s", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[mount-efs] Mounting {MOUNT_POINT}...")
+    result = run(f"mount {MOUNT_POINT}")
+    if result.returncode != 0:
+        print(f"[mount-efs] ERROR: mount failed (exit code {result.returncode})", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[mount-efs] Mounted {MOUNT_POINT} successfully.")
+
+
+if __name__ == "__main__":
+    main()

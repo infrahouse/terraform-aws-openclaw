@@ -14,12 +14,6 @@ skip-check:
   # Renovate manages version updates via individual PRs for explicit review.
   - CKV_TF_1
 
-  # CKV_AWS_158: CloudWatch Logs use AWS-managed encryption
-  # AWS-managed encryption at rest is the InfraHouse standard.
-  # Logs contain application output and connection metadata (no PII or credentials).
-  # CMK is only required for CloudTrail per security policy.
-  - CKV_AWS_158
-
   # CKV_AWS_111: IAM write access without resource constraints
   # Two statements use "*" resources by necessity:
   # 1. Bedrock ListFoundationModels/ListInferenceProfiles + Marketplace Subscribe
@@ -27,6 +21,12 @@ skip-check:
   # 2. autoscaling:CompleteLifecycleAction + ec2:DescribeInstances are used by
   #    ih-aws autoscaling complete, which discovers its own ASG at runtime.
   - CKV_AWS_111
+
+  # CKV_AWS_109: KMS key policy grants root account full control
+  # Standard AWS KMS key policy pattern: the root principal gets kms:* so that
+  # IAM policies in the account can delegate key usage. Without this, the key
+  # becomes unmanageable. See AWS docs on default key policies.
+  - CKV_AWS_109
 
   # CKV_AWS_356: IAM "*" resource for restrictable actions
   # Same two statements as CKV_AWS_111 above. Bedrock list/marketplace actions

@@ -91,12 +91,12 @@ module "openclaw_userdata" {
 
   extra_files = [
     {
-      content     = file("${path.module}/openclaw.service")
+      content     = file("${path.module}/templates/openclaw.service")
       path        = "/etc/systemd/system/openclaw.service"
       permissions = "0644"
     },
     {
-      content = templatefile("${path.module}/setup-openclaw.py.tftpl", {
+      content = templatefile("${path.module}/templates/setup-openclaw.py.tftpl", {
         secret_name          = module.api_keys.secret_name
         aws_region           = data.aws_region.this.name
         openclaw_config_json = jsonencode(local.openclaw_config)
@@ -104,6 +104,14 @@ module "openclaw_userdata" {
         ollama_default_model = var.ollama_default_model
       })
       path        = "/opt/openclaw/setup-openclaw.py"
+      permissions = "0755"
+    },
+    {
+      content = templatefile("${path.module}/templates/mount-efs.py.tftpl", {
+        efs_dns_name = aws_efs_file_system.this.dns_name
+        mount_point  = "/home/openclaw/.openclaw"
+      })
+      path        = "/opt/openclaw/mount-efs.py"
       permissions = "0755"
     },
   ]
@@ -129,8 +137,9 @@ module "openclaw_userdata" {
     var.extra_packages,
   )
 
-  # Mount EFS at /home/openclaw/.openclaw for persistent agent data
-  # See https://docs.aws.amazon.com/efs/latest/ug/nfs-automount-efs.html
+  # Mount EFS at /home/openclaw/.openclaw for persistent agent data.
+  # The mounts directive writes /etc/fstab but mount -a may fail if DNS
+  # isn't ready yet. We retry in pre_runcmd to handle the race.
   mounts = [
     [
       "${aws_efs_file_system.this.dns_name}:/",
@@ -143,10 +152,9 @@ module "openclaw_userdata" {
   ]
 
   pre_runcmd = [
-    # Dedicated user (must exist before mount point)
     "useradd --system --create-home --shell /bin/bash openclaw || true",
     "mkdir -p /home/openclaw/.openclaw",
-    "mount /home/openclaw/.openclaw",
+    "/opt/openclaw/mount-efs.py",
   ]
 
   post_runcmd = [
