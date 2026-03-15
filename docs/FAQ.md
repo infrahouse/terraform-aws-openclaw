@@ -152,7 +152,10 @@ across instance redeployments.
 Terraform uses deep-merge: infrastructure settings always win, but
 operational settings you configure in the UI are preserved.
 
-### How to add API keys (Anthropic, OpenAI)?
+### How do I pass secrets (API keys, tokens, etc.) to OpenClaw?
+
+The module creates a Secrets Manager secret. Every key/value pair in
+its JSON becomes an environment variable for the OpenClaw process.
 
 First, make sure your IAM role is listed in `api_keys_writers` so you
 have permission to write to the secret:
@@ -161,9 +164,20 @@ have permission to write to the secret:
 api_keys_writers = ["arn:aws:iam::123456789012:role/admin"]
 ```
 
-Then create a JSON file with your keys (`{"ANTHROPIC_API_KEY": "sk-...", "OPENAI_API_KEY": "sk-..."}`):
+Then create a JSON file with your secrets and upload it:
 
 ```bash
-ih-secrets set $(terraform output -raw secret_name) api-keys.json
+cat > secrets.json <<'EOF'
+{
+  "ANTHROPIC_API_KEY": "sk-...",
+  "OPENAI_API_KEY": "sk-...",
+  "TELEGRAM_BOT_TOKEN": "123456:ABC-...",
+  "MY_CUSTOM_SECRET": "some-value"
+}
+EOF
+ih-secrets set $(terraform output -raw secret_name) secrets.json
 terraform apply
 ```
+
+See [Configuration — Passing Secrets to OpenClaw](configuration.md#passing-secrets-to-openclaw)
+for details.

@@ -123,18 +123,20 @@ The systemd unit points to the local binary at
 
 ## Secrets Management
 
-### API keys (Anthropic, OpenAI)
+### Environment secrets
 
-Stored in AWS Secrets Manager via the `infrahouse/secret/aws` module, which
+All secrets (API keys, tokens, custom credentials) are stored in a single
+AWS Secrets Manager secret via the `infrahouse/secret/aws` module, which
 provides KMS encryption and IAM-scoped access. The instance profile is
 granted `secretsmanager:GetSecretValue` only for the specific secret ARN.
 Write access is controlled separately via the `api_keys_writers` variable —
 only the IAM roles listed there can populate or update the secret value.
 
-The setup script reads secrets at boot via `ih-secrets` (from
-`infrahouse-toolkit`). If the secret has not been populated yet (returns
-`NoValue`), the script logs a warning and continues — the service starts
-without those providers.
+The setup script reads the secret at boot via `ih-secrets` (from
+`infrahouse-toolkit`) and writes **every key/value pair** from the JSON
+to the `.openclaw-env` environment file. If the secret has not been
+populated yet (returns `NoValue`), the script logs a warning and
+continues — the service starts without those environment variables.
 
 ### Gateway token (removed)
 

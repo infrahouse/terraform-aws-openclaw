@@ -66,33 +66,37 @@ will be prompted to set a permanent one.
 
 You can start using OpenClaw right away with the default Bedrock models.
 
-### 4. (Optional) Add API keys for Anthropic / OpenAI
+### 4. (Optional) Add secrets
 
-If you want to use Anthropic or OpenAI models in addition to Bedrock,
-first grant write access to the secret by adding `api_keys_writers` to
-your module block:
+The module creates a Secrets Manager secret for passing environment
+variables to OpenClaw. Every key/value pair in the secret JSON becomes
+available to the OpenClaw process. Common uses include LLM API keys,
+Telegram bot tokens, and any secrets needed by skills or tools.
+
+First, grant write access by adding `api_keys_writers` to your module
+block:
 
 ```hcl
 api_keys_writers = ["arn:aws:iam::123456789012:role/admin"]
 ```
 
-Then populate the Secrets Manager secret with a JSON file containing
-your API keys:
+Then populate the secret with a JSON file:
 
 ```json
 {
   "ANTHROPIC_API_KEY": "sk-...",
-  "OPENAI_API_KEY": "sk-..."
+  "OPENAI_API_KEY": "sk-...",
+  "MY_CUSTOM_SECRET": "some-value"
 }
 ```
 
 ```bash
-ih-secrets set $(terraform output -raw secret_name) api-keys.json
+ih-secrets set $(terraform output -raw secret_name) secrets.json
 terraform apply
 ```
 
 This step is entirely optional — Bedrock provides full LLM
-functionality without any external API keys.
+functionality without any external secrets.
 
 ## Bedrock First-Time Setup
 

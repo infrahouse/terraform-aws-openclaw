@@ -66,22 +66,43 @@ extra_bedrock_models = [
 
 ### Anthropic API / OpenAI API
 
-First, grant write access to the secret by setting `api_keys_writers`
-to the IAM role ARNs that should be allowed to populate the keys:
+Store provider API keys in the Secrets Manager secret — see
+[Passing secrets to OpenClaw](#passing-secrets-to-openclaw) below.
+The relevant key names are `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`.
+
+## Passing Secrets to OpenClaw
+
+The module creates a Secrets Manager secret for passing environment
+variables to the OpenClaw process. **Every key/value pair** in the
+secret JSON is written to the `.openclaw-env` environment file and
+made available to OpenClaw at boot. This is not limited to LLM API
+keys — any secret that a skill, tool, or integration needs can be
+stored here.
+
+### 1. Grant write access
+
+Set `api_keys_writers` to the IAM role ARNs that should be allowed
+to populate the secret:
 
 ```hcl
 api_keys_writers = ["arn:aws:iam::123456789012:role/admin"]
 ```
 
-Then store API keys in the Secrets Manager secret created by the module.
-Create a JSON file (e.g. `api-keys.json`):
+### 2. Populate the secret
+
+Create a JSON file (e.g. `secrets.json`) with your key/value pairs:
 
 ```json
-{"ANTHROPIC_API_KEY": "sk-...", "OPENAI_API_KEY": "sk-..."}
+{
+  "ANTHROPIC_API_KEY": "sk-...",
+  "OPENAI_API_KEY": "sk-...",
+  "TELEGRAM_BOT_TOKEN": "123456:ABC-...",
+  "MY_CUSTOM_SECRET": "some-value"
+}
 ```
 
 ```bash
-ih-secrets set $(terraform output -raw secret_name) api-keys.json
+ih-secrets set $(terraform output -raw secret_name) secrets.json
 terraform apply
 ```
 

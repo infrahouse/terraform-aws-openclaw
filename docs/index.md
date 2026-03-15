@@ -51,19 +51,20 @@ module "openclaw" {
 }
 ```
 
-To use Anthropic or OpenAI models, set `api_keys_writers` to grant
-your IAM role write access to the secret, then add API keys.
-Create a JSON file (e.g. `api-keys.json`) with your LLM provider keys:
+The module creates a Secrets Manager secret for passing environment
+variables (API keys, tokens, etc.) to OpenClaw. Set `api_keys_writers`
+to grant write access, then populate it with any key/value pairs:
 
 ```json
 {
-  "ANTHROPIC_API_KEY": "sk-...", 
-  "OPENAI_API_KEY": "sk-..."
+  "ANTHROPIC_API_KEY": "sk-...",
+  "OPENAI_API_KEY": "sk-...",
+  "MY_CUSTOM_SECRET": "some-value"
 }
 ```
 
 ```bash
-ih-secrets set $(terraform output -raw secret_name) api-keys.json
+ih-secrets set $(terraform output -raw secret_name) secrets.json
 terraform apply
 ```
 
