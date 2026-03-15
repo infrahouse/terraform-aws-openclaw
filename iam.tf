@@ -82,5 +82,6 @@ module "api_keys" {
   readers = [
     data.aws_iam_role.instance.arn
   ]
+  writers = var.api_keys_writers
 }
 

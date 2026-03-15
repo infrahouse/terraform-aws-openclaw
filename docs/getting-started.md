@@ -69,8 +69,15 @@ You can start using OpenClaw right away with the default Bedrock models.
 ### 4. (Optional) Add API keys for Anthropic / OpenAI
 
 If you want to use Anthropic or OpenAI models in addition to Bedrock,
-populate the Secrets Manager secret with a JSON file containing your
-API keys:
+first grant write access to the secret by adding `api_keys_writers` to
+your module block:
+
+```hcl
+api_keys_writers = ["arn:aws:iam::123456789012:role/admin"]
+```
+
+Then populate the Secrets Manager secret with a JSON file containing
+your API keys:
 
 ```json
 {

@@ -58,8 +58,9 @@ flowchart TD
 API keys for Anthropic and OpenAI are stored in a KMS-encrypted
 Secrets Manager secret (via `infrahouse/secret/aws`). The instance
 role has `secretsmanager:GetSecretValue` permission on the secret ARN.
-At boot, the setup script reads the secret and writes an environment
-file for the OpenClaw systemd service.
+Write access to populate the secret is granted to IAM roles specified
+in the `api_keys_writers` variable. At boot, the setup script reads
+the secret and writes an environment file for the OpenClaw systemd service.
 
 ### CloudWatch Logging
 

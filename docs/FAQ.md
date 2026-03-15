@@ -154,7 +154,14 @@ operational settings you configure in the UI are preserved.
 
 ### How to add API keys (Anthropic, OpenAI)?
 
-Create a JSON file with your keys (`{"ANTHROPIC_API_KEY": "sk-...", "OPENAI_API_KEY": "sk-..."}`):
+First, make sure your IAM role is listed in `api_keys_writers` so you
+have permission to write to the secret:
+
+```hcl
+api_keys_writers = ["arn:aws:iam::123456789012:role/admin"]
+```
+
+Then create a JSON file with your keys (`{"ANTHROPIC_API_KEY": "sk-...", "OPENAI_API_KEY": "sk-..."}`):
 
 ```bash
 ih-secrets set $(terraform output -raw secret_name) api-keys.json
