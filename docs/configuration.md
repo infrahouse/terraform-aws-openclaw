@@ -36,6 +36,7 @@
 |----------|---------|-------------|
 | `extra_bedrock_models` | `[]` | Additional Bedrock models with `us.` inference profile prefix. |
 | `ollama_default_model` | `"qwen2.5:1.5b"` | Ollama model to pre-pull. Set to `null` to skip. |
+| `api_keys_writers` | `null` | IAM role ARNs allowed to write API keys to the Secrets Manager secret. |
 
 ## LLM Provider Configuration
 
@@ -65,7 +66,14 @@ extra_bedrock_models = [
 
 ### Anthropic API / OpenAI API
 
-Store API keys in the Secrets Manager secret created by the module.
+First, grant write access to the secret by setting `api_keys_writers`
+to the IAM role ARNs that should be allowed to populate the keys:
+
+```hcl
+api_keys_writers = ["arn:aws:iam::123456789012:role/admin"]
+```
+
+Then store API keys in the Secrets Manager secret created by the module.
 Create a JSON file (e.g. `api-keys.json`):
 
 ```json

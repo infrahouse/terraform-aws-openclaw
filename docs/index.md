@@ -51,8 +51,9 @@ module "openclaw" {
 }
 ```
 
-Then add API keys to the Secrets Manager secret. Create a JSON file
-(e.g. `api-keys.json`) with your LLM provider keys:
+To use Anthropic or OpenAI models, set `api_keys_writers` to grant
+your IAM role write access to the secret, then add API keys.
+Create a JSON file (e.g. `api-keys.json`) with your LLM provider keys:
 
 ```json
 {

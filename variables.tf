@@ -141,6 +141,12 @@ variable "alarm_emails" {
   description = "Email addresses for CloudWatch alarm notifications (ALB health, latency, 5xx)."
 }
 
+variable "api_keys_writers" {
+  type        = list(string)
+  description = "IAM role ARNs allowed to write LLM API keys to the Secrets Manager secret."
+  default     = null
+}
+
 variable "extra_instance_permissions" {
   type        = string
   description = "Additional IAM policy document JSON to attach to the instance role (merged with module-managed permissions)."
@@ -169,4 +175,3 @@ variable "cognito_users" {
   )
   description = "List of Cognito users to create with email and full name."
 }
-
