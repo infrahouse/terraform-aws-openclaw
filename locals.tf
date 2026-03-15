@@ -1,5 +1,5 @@
 locals {
-  module_version = "0.3.0"
+  module_version = "0.3.1"
 
   zone_name = trimsuffix(data.aws_route53_zone.this.name, ".")
   # Build the FQDN from the first A record entry and the zone name.
