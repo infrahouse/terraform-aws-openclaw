@@ -1,6 +1,6 @@
 module "openclaw" {
   source  = "registry.infrahouse.com/infrahouse/openclaw/aws"
-  version = "0.3.1"
+  version = "0.3.2"
   providers = {
     aws     = aws
     aws.dns = aws
