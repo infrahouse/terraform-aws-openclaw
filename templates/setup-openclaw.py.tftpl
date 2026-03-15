@@ -89,7 +89,10 @@ def fetch_api_keys():
 
 
 def write_env_file(keys):
+    default_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    openclaw_bin = f"{OPENCLAW_HOME}/.openclaw/bin"
     lines = [
+        f"PATH={openclaw_bin}:{default_path}",
         f"AWS_REGION={AWS_REGION}",
         f"AWS_DEFAULT_REGION={AWS_REGION}",
         # AWS_PROFILE=default triggers OpenClaw's Bedrock credential
