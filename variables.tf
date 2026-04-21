@@ -130,6 +130,13 @@ variable "ollama_default_model" {
   nullable    = true
 }
 
+variable "ollama_version" {
+  type        = string
+  description = "Ollama release version to install (without leading 'v'). Null means resolve the latest GitHub release at bootstrap time."
+  default     = null
+  nullable    = true
+}
+
 variable "extra_packages" {
   type        = list(string)
   description = "Additional APT packages to install on the instance (e.g. gh for GitHub skill)."
