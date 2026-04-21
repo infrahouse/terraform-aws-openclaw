@@ -83,11 +83,16 @@ module "openclaw_pod" {
 
 module "openclaw_userdata" {
   source  = "registry.infrahouse.com/infrahouse/cloud-init/aws"
-  version = "2.2.3"
+  version = "2.3.0"
 
   environment   = var.environment
   role          = "base"
   gzip_userdata = true
+
+  # Auto-signal the launching lifecycle hook: CONTINUE at end of a successful
+  # bootstrap, ABANDON via ERR trap on any failure. setup-openclaw.py must
+  # therefore block until OpenClaw is actually serving traffic on :5173.
+  lifecycle_hook_name = "${var.service_name}-launching"
 
   extra_files = [
     {
@@ -102,6 +107,7 @@ module "openclaw_userdata" {
         openclaw_config_json = jsonencode(local.openclaw_config)
         cloudwatch_log_group = aws_cloudwatch_log_group.this.name
         ollama_default_model = var.ollama_default_model
+        ollama_version       = var.ollama_version == null ? "" : var.ollama_version
       })
       path        = "/opt/openclaw/setup-openclaw.py"
       permissions = "0755"
@@ -161,6 +167,5 @@ module "openclaw_userdata" {
     # Restore sudo for SSM Session Manager (Puppet purges cloud-init sudoers)
     "usermod -aG admin ssm-user",
     "/opt/openclaw/setup-openclaw.py",
-    "ih-aws autoscaling complete ${var.service_name}-launching",
   ]
 }

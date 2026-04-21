@@ -20,6 +20,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 logging.basicConfig(
@@ -38,6 +41,7 @@ SECRET_NAME = "${secret_name}"
 AWS_REGION = "${aws_region}"
 CLOUDWATCH_LOG_GROUP = "${cloudwatch_log_group}"
 OLLAMA_DEFAULT_MODEL = "${ollama_default_model}"
+OLLAMA_VERSION = "${ollama_version}"
 TERRAFORM_CONFIG = json.loads(r'''${openclaw_config_json}''')
 
 
@@ -200,12 +204,53 @@ WantedBy=default.target
 """
 
 
+OLLAMA_LATEST_RELEASE_URL = "https://api.github.com/repos/ollama/ollama/releases/latest"
+OLLAMA_CACHE_DIR = OPENCLAW_HOME / ".openclaw" / "cache"
+
+
+def _resolve_ollama_version():
+    """Return the Ollama version to install (without leading 'v').
+
+    If OLLAMA_VERSION is set via Terraform, use it. Otherwise query GitHub
+    for the latest release tag.
+    """
+    if OLLAMA_VERSION:
+        log.info("Using pinned Ollama version: %s", OLLAMA_VERSION)
+        return OLLAMA_VERSION
+    log.info("Resolving latest Ollama version from %s", OLLAMA_LATEST_RELEASE_URL)
+    req = urllib.request.Request(
+        OLLAMA_LATEST_RELEASE_URL,
+        headers={"Accept": "application/vnd.github+json"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        payload = json.load(resp)
+    tag = payload["tag_name"].lstrip("v")
+    log.info("Latest Ollama version resolved to %s", tag)
+    return tag
+
+
 def install_ollama():
     log.info("Installing Ollama...")
+    version = _resolve_ollama_version()
+    tarball_name = f"ollama-linux-amd64-v{version}.tgz"
+    url = f"https://github.com/ollama/ollama/releases/download/v{version}/ollama-linux-amd64.tgz"
+    cached_tarball = OLLAMA_CACHE_DIR / tarball_name
+
+    OLLAMA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
-        tarball = os.path.join(tmp, "ollama.tar.zst")
-        run(f"curl -fsSL -o {tarball} https://ollama.com/download/ollama-linux-amd64.tar.zst")
-        run(f"tar --use-compress-program=unzstd -xf {tarball} -C {tmp}")
+        tarball = os.path.join(tmp, tarball_name)
+        if cached_tarball.exists() and cached_tarball.stat().st_size > 0:
+            log.info("Using cached Ollama tarball at %s", cached_tarball)
+            shutil.copyfile(cached_tarball, tarball)
+        else:
+            log.info("Downloading Ollama %s from %s", version, url)
+            run(f"curl -fsSL -o {tarball} {url}")
+            # Atomic publish so a partial download can't poison the cache.
+            tmp_cached = cached_tarball.with_suffix(".tgz.tmp")
+            shutil.copyfile(tarball, tmp_cached)
+            os.replace(tmp_cached, cached_tarball)
+            log.info("Cached Ollama tarball at %s", cached_tarball)
+        run(f"tar -xzf {tarball} -C {tmp}")
         run(f"install -m 755 {tmp}/bin/ollama /usr/local/bin/ollama")
 
     result = subprocess.run(
@@ -281,7 +326,55 @@ def start_openclaw():
     run("systemctl daemon-reload")
     run("systemctl enable openclaw.service")
     run("systemctl start openclaw.service")
-    log.info("Setup complete.")
+
+
+# --------------------------------------------------------------------------- #
+# 7. Wait until OpenClaw is actually serving traffic
+# --------------------------------------------------------------------------- #
+READINESS_URL = "http://127.0.0.1:5173/"
+READINESS_TIMEOUT = 900
+READINESS_POLL_INTERVAL = 5
+
+
+def wait_for_ready():
+    """Block until OpenClaw returns 2xx/3xx on /, matching the ALB health check.
+
+    The launching lifecycle hook auto-signals CONTINUE when this script exits
+    successfully, so we must not exit until the instance will pass the ALB
+    health check. OpenClaw installs plugin runtime deps for ~2-3 minutes
+    after systemd reports the service as Started, during which port 5173 is
+    not yet bound.
+    """
+    log.info("Waiting for OpenClaw to serve %s ...", READINESS_URL)
+    deadline = time.monotonic() + READINESS_TIMEOUT
+    attempt = 0
+    last_error = None
+    while time.monotonic() < deadline:
+        attempt += 1
+        try:
+            with urllib.request.urlopen(READINESS_URL, timeout=5) as resp:
+                if 200 <= resp.status < 400:
+                    log.info(
+                        "OpenClaw is ready after %d attempts (HTTP %d).",
+                        attempt,
+                        resp.status,
+                    )
+                    return
+                last_error = f"HTTP {resp.status}"
+        except urllib.error.HTTPError as exc:
+            if 200 <= exc.code < 400:
+                log.info("OpenClaw is ready (HTTP %d).", exc.code)
+                return
+            last_error = f"HTTP {exc.code}"
+        except (urllib.error.URLError, OSError) as exc:
+            last_error = str(exc)
+        if attempt % 6 == 0:
+            log.info("Still waiting for OpenClaw (%s) ...", last_error)
+        time.sleep(READINESS_POLL_INTERVAL)
+    raise RuntimeError(
+        f"OpenClaw did not become ready within {READINESS_TIMEOUT}s "
+        f"(last error: {last_error})"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -296,6 +389,8 @@ def main():
         install_ollama()
         configure_cloudwatch()
         start_openclaw()
+        wait_for_ready()
+        log.info("Setup complete.")
     except subprocess.CalledProcessError as exc:
         log.error("Command failed (exit %d): %s", exc.returncode, exc.cmd)
         sys.exit(1)
