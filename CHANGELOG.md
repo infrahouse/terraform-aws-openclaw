@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-04-22
+
+### Bootstrap
+
+- ALB-ready gate, lifecycle auto-signal, pinned Ollama cache
+
 ## [0.3.3] - 2026-03-15
 
 ## [0.3.2] - 2026-03-15
