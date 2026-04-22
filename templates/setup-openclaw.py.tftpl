@@ -232,11 +232,12 @@ def _resolve_ollama_version():
 def install_ollama():
     log.info("Installing Ollama...")
     version = _resolve_ollama_version()
-    tarball_name = f"ollama-linux-amd64-v{version}.tgz"
-    url = f"https://github.com/ollama/ollama/releases/download/v{version}/ollama-linux-amd64.tgz"
+    tarball_name = f"ollama-linux-amd64-v{version}.tar.zst"
+    url = f"https://github.com/ollama/ollama/releases/download/v{version}/ollama-linux-amd64.tar.zst"
     cached_tarball = OLLAMA_CACHE_DIR / tarball_name
 
     OLLAMA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.chown(OLLAMA_CACHE_DIR, "openclaw", "openclaw")
     with tempfile.TemporaryDirectory() as tmp:
         tarball = os.path.join(tmp, tarball_name)
         if cached_tarball.exists() and cached_tarball.stat().st_size > 0:
@@ -246,11 +247,11 @@ def install_ollama():
             log.info("Downloading Ollama %s from %s", version, url)
             run(f"curl -fsSL -o {tarball} {url}")
             # Atomic publish so a partial download can't poison the cache.
-            tmp_cached = cached_tarball.with_suffix(".tgz.tmp")
+            tmp_cached = cached_tarball.with_suffix(".tar.zst.tmp")
             shutil.copyfile(tarball, tmp_cached)
             os.replace(tmp_cached, cached_tarball)
             log.info("Cached Ollama tarball at %s", cached_tarball)
-        run(f"tar -xzf {tarball} -C {tmp}")
+        run(f"tar --use-compress-program=unzstd -xf {tarball} -C {tmp}")
         run(f"install -m 755 {tmp}/bin/ollama /usr/local/bin/ollama")
 
     result = subprocess.run(
@@ -319,7 +320,45 @@ def configure_cloudwatch():
 
 
 # --------------------------------------------------------------------------- #
-# 6. Start OpenClaw service
+# 6. Persist plugin-state dotdirs to EFS
+# --------------------------------------------------------------------------- #
+# Plugins that store auth/session state under $HOME/.<name> rather than inside
+# /home/openclaw/.openclaw. Each gets relocated to EFS and symlinked back so
+# the state survives instance replacement. Add a name here when a new plugin
+# starts creating its own $HOME dotdir.
+PERSISTED_PLUGIN_DIRS = ("codex",)
+PLUGIN_STATE_ROOT = OPENCLAW_HOME / ".openclaw" / "plugin-state"
+
+
+def persist_plugin_state_dirs():
+    PLUGIN_STATE_ROOT.mkdir(parents=True, exist_ok=True)
+    shutil.chown(PLUGIN_STATE_ROOT, "openclaw", "openclaw")
+    for name in PERSISTED_PLUGIN_DIRS:
+        target = PLUGIN_STATE_ROOT / name
+        link = OPENCLAW_HOME / f".{name}"
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.chown(target, "openclaw", "openclaw")
+
+        if link.is_symlink():
+            if link.resolve() == target.resolve():
+                continue
+            link.unlink()
+        elif link.exists():
+            # One-time migration of data written before this helper existed.
+            log.info("Migrating %s into %s", link, target)
+            for entry in link.iterdir():
+                dest = target / entry.name
+                if dest.exists():
+                    continue
+                shutil.move(str(entry), str(dest))
+            shutil.rmtree(link)
+
+        link.symlink_to(target)
+        log.info("Symlinked %s -> %s", link, target)
+
+
+# --------------------------------------------------------------------------- #
+# 7. Start OpenClaw service
 # --------------------------------------------------------------------------- #
 def start_openclaw():
     log.info("Starting OpenClaw service...")
@@ -329,7 +368,7 @@ def start_openclaw():
 
 
 # --------------------------------------------------------------------------- #
-# 7. Wait until OpenClaw is actually serving traffic
+# 8. Wait until OpenClaw is actually serving traffic
 # --------------------------------------------------------------------------- #
 READINESS_URL = "http://127.0.0.1:5173/"
 READINESS_TIMEOUT = 900
@@ -388,6 +427,7 @@ def main():
         configure_openclaw()
         install_ollama()
         configure_cloudwatch()
+        persist_plugin_state_dirs()
         start_openclaw()
         wait_for_ready()
         log.info("Setup complete.")

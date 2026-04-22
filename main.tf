@@ -57,11 +57,15 @@ module "openclaw_pod" {
   alb_healthcheck_interval              = 30
   alb_healthcheck_timeout               = 5
   alb_healthcheck_healthy_threshold     = 2
-  alb_healthcheck_unhealthy_threshold   = 3
-  enable_deletion_protection            = var.enable_deletion_protection
-  alb_access_log_force_destroy          = var.alb_access_log_force_destroy
-  stickiness_enabled                    = true
-  target_group_port                     = 5173
+  # 5 × 30s = 150s of sustained failure before the target is unhealthy.
+  # OpenClaw restarts itself on config changes (UI or Terraform push) and
+  # port 5173 is gone for ~45s; a lower threshold turns that into instance
+  # replacement, which punishes users for making expected config changes.
+  alb_healthcheck_unhealthy_threshold = 5
+  enable_deletion_protection          = var.enable_deletion_protection
+  alb_access_log_force_destroy        = var.alb_access_log_force_destroy
+  stickiness_enabled                  = true
+  target_group_port                   = 5173
 
   # Lifecycle hooks: instance stays in Pending:Wait until setup-openclaw.py completes
   asg_lifecycle_hook_initial           = "${var.service_name}-launching"

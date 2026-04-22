@@ -155,7 +155,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 |------|--------|---------|
 | <a name="module_api_keys"></a> [api\_keys](#module\_api\_keys) | registry.infrahouse.com/infrahouse/secret/aws | 1.1.1 |
 | <a name="module_openclaw_pod"></a> [openclaw\_pod](#module\_openclaw\_pod) | registry.infrahouse.com/infrahouse/website-pod/aws | 5.17.0 |
-| <a name="module_openclaw_userdata"></a> [openclaw\_userdata](#module\_openclaw\_userdata) | registry.infrahouse.com/infrahouse/cloud-init/aws | 2.2.3 |
+| <a name="module_openclaw_userdata"></a> [openclaw\_userdata](#module\_openclaw\_userdata) | registry.infrahouse.com/infrahouse/cloud-init/aws | 2.3.0 |
 
 ## Resources
 
@@ -176,6 +176,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 | [aws_security_group.efs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_vpc_security_group_egress_rule.efs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.efs_nfs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [random_password.gateway_auth](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.users](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_string.cloudwatch_kms](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
 | [tls_private_key.this](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
@@ -212,6 +213,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 | <a name="input_instance_type"></a> [instance\_type](#input\_instance\_type) | EC2 instance type.<br/>t3.medium (4 GB) minimum for OpenClaw + cloud LLMs only.<br/>t3.large (8 GB) recommended for OpenClaw + Ollama with small local models.<br/>t3.xlarge (16 GB) for larger local models. | `string` | `"t3.large"` | no |
 | <a name="input_key_name"></a> [key\_name](#input\_key\_name) | EC2 key pair name for SSH access. If null, a key pair is auto-generated. | `string` | `null` | no |
 | <a name="input_ollama_default_model"></a> [ollama\_default\_model](#input\_ollama\_default\_model) | Default Ollama model to pull on instance bootstrap. Set to null to skip. | `string` | `"qwen2.5:1.5b"` | no |
+| <a name="input_ollama_version"></a> [ollama\_version](#input\_ollama\_version) | Ollama release version to install (without leading 'v'). Null means resolve the latest GitHub release at bootstrap time. | `string` | `null` | no |
 | <a name="input_root_volume_size"></a> [root\_volume\_size](#input\_root\_volume\_size) | Root EBS volume size in GB. 30 GB minimum recommended for Ollama models. | `number` | `30` | no |
 | <a name="input_service_name"></a> [service\_name](#input\_service\_name) | Service name used for resource naming, tags, and Cognito pool. | `string` | `"openclaw"` | no |
 | <a name="input_zone_id"></a> [zone\_id](#input\_zone\_id) | Route53 hosted zone ID for DNS validation and the A record. | `string` | n/a | yes |
