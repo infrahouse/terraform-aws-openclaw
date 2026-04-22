@@ -95,9 +95,7 @@ def test_module(
 
     # Generate terraform.tf with specified AWS provider version
     with open(osp.join(terraform_module_dir, "terraform.tf"), "w") as fp:
-        fp.write(
-            dedent(
-                f"""
+        fp.write(dedent(f"""
                 terraform {{
                   required_version = "~> 1.5"
                   required_providers {{
@@ -118,30 +116,20 @@ def test_module(
                     }}
                   }}
                 }}
-                """
-            )
-        )
+                """))
 
     # Generate terraform.tfvars
     with open(osp.join(terraform_module_dir, "terraform.tfvars"), "w") as fp:
-        fp.write(
-            dedent(
-                f"""
+        fp.write(dedent(f"""
                 region             = "{aws_region}"
                 subnet_public_ids  = {json.dumps(subnet_public_ids)}
                 subnet_private_ids = {json.dumps(subnet_private_ids)}
                 zone_id            = "{zone_id}"
-                """
-            )
-        )
+                """))
         if test_role_arn:
-            fp.write(
-                dedent(
-                    f"""
+            fp.write(dedent(f"""
                 role_arn = "{test_role_arn}"
-                """
-                )
-            )
+                """))
 
     with terraform_apply(
         terraform_module_dir,

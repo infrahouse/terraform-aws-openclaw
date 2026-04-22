@@ -97,6 +97,10 @@ locals {
         trustedProxy = {
           userHeader = "x-amzn-oidc-identity"
         }
+        # Pre-seeded so OpenClaw's browser-control plugin doesn't auto-generate
+        # one on first boot, persist it to openclaw.json, and trigger a
+        # SIGUSR1 self-restart that blackholes :5173 for ~45s.
+        password = random_password.gateway_auth.result
       }
       trustedProxies = [for s in data.aws_subnet.alb : s.cidr_block]
       controlUi = {
@@ -114,4 +118,10 @@ locals {
       providers = local.model_providers
     }
   }
+}
+
+# Stable gateway auth password; regenerated only if explicitly tainted.
+resource "random_password" "gateway_auth" {
+  length  = 48
+  special = false
 }

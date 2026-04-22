@@ -1,7 +1,7 @@
 
 region             = "us-west-2"
-subnet_public_ids  = ["subnet-0ac78ce8a32772ee5", "subnet-090763851768d3310"]
-subnet_private_ids = ["subnet-0363c207d468cb11a", "subnet-0a5aab356464d8a4b"]
-zone_id            = "Z0886113Y18ZV4V8CI0F"
+subnet_public_ids  = ["subnet-088669f929b419967", "subnet-03a7ae33f838eb927"]
+subnet_private_ids = ["subnet-049df29a490a4bcf2", "subnet-0bd3769176b173de5"]
+zone_id            = "Z05341542D8PUGAHTQ54C"
 
 role_arn = "arn:aws:iam::303467602807:role/openclaw-tester"
