@@ -87,7 +87,7 @@ module "openclaw_pod" {
 
 module "openclaw_userdata" {
   source  = "registry.infrahouse.com/infrahouse/cloud-init/aws"
-  version = "2.3.0"
+  version = "2.3.1"
 
   environment   = var.environment
   role          = "base"

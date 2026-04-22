@@ -155,7 +155,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 |------|--------|---------|
 | <a name="module_api_keys"></a> [api\_keys](#module\_api\_keys) | registry.infrahouse.com/infrahouse/secret/aws | 1.1.1 |
 | <a name="module_openclaw_pod"></a> [openclaw\_pod](#module\_openclaw\_pod) | registry.infrahouse.com/infrahouse/website-pod/aws | 5.17.0 |
-| <a name="module_openclaw_userdata"></a> [openclaw\_userdata](#module\_openclaw\_userdata) | registry.infrahouse.com/infrahouse/cloud-init/aws | 2.3.0 |
+| <a name="module_openclaw_userdata"></a> [openclaw\_userdata](#module\_openclaw\_userdata) | registry.infrahouse.com/infrahouse/cloud-init/aws | 2.3.1 |
 
 ## Resources
 
