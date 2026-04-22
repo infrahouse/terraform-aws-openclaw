@@ -168,8 +168,6 @@ module "openclaw_userdata" {
   ]
 
   post_runcmd = [
-    # Restore sudo for SSM Session Manager (Puppet purges cloud-init sudoers)
-    "usermod -aG admin ssm-user",
     "/opt/openclaw/setup-openclaw.py",
   ]
 }
