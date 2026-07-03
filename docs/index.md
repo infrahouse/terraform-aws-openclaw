@@ -30,7 +30,7 @@ OpenAI, Ollama).
 ```hcl
 module "openclaw" {
   source  = "registry.infrahouse.com/infrahouse/openclaw/aws"
-  version = "0.4.0"
+  version = "0.5.0"
   providers = {
     aws     = aws
     aws.dns = aws
