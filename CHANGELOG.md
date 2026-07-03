@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-07-03
+
 ## [0.4.0] - 2026-04-22
 
 ### Bootstrap
